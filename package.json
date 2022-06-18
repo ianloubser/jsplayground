@@ -2,6 +2,7 @@
   "name": "jsplay",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://ianloubser.github.io/jsplayground/",
   "dependencies": {
     "@craco/craco": "^6.3.0",
     "@monaco-editor/react": "^4.2.2",

@@ -1,4 +1,10 @@
-import React, { useRef, useState, useEffect, useLayoutEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+} from "react";
 import Editor from "@monaco-editor/react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -48,6 +54,10 @@ const injectLoggingControl = (doc) => {
         window.parent.postMessage({ event: 'LOG', level, args: args }, '*');
       }
     }
+
+    window.onerror = function (e, ...args) {
+      window.parent.postMessage({ event: 'ERROR', level: 'error', args: args }, '*');
+    };
   `;
 
   var logScript = doc.createElement("script");
@@ -75,12 +85,16 @@ const injectDependenciesImportMap = (html, files) => {
   var parser = new DOMParser();
   var doc = parser.parseFromString(html, "text/html");
   var head = doc.getElementsByTagName("head")[0];
+  doc = injectLoggingControl(doc);
+
   let importsJson = { imports: {} };
+  let blobNames = {};
   for (let file of Object.keys(files)) {
-    console.log("Injecting file", file);
     const bb = new Blob([files[file]], { type: getFileMimeType(file) });
     const dataUrl = URL.createObjectURL(bb);
     importsJson.imports[file] = dataUrl;
+    importsJson.imports[`~/${file}`] = dataUrl;
+    blobNames[`${dataUrl}`] = file;
   }
 
   const importMap = doc.createElement("script");
@@ -88,9 +102,10 @@ const injectDependenciesImportMap = (html, files) => {
   importMap.innerHTML = JSON.stringify(importsJson, null, 4);
   head.appendChild(importMap);
 
-  doc = injectLoggingControl(doc);
-
-  return doc.documentElement.outerHTML;
+  return {
+    page: doc.documentElement.outerHTML,
+    urls: blobNames,
+  };
 };
 
 const injectDependencies = (html, files) => {
@@ -148,13 +163,13 @@ const Tab = (props) => {
       >
         <MenuItem
           className="px-5 py-1 hover:bg-gray-500"
-          onClick={() => console.log("delete")}
+          onClick={() => props.onAction("delete", props.value)}
         >
           Delete
         </MenuItem>
         <MenuItem
           className="px-5 py-1 hover:bg-gray-500"
-          onClick={() => console.log("rename")}
+          onClick={() => props.onAction("rename", props.value)}
         >
           Rename
         </MenuItem>
@@ -174,11 +189,17 @@ const NewFileTab = ({ onNewFile }) => {
 
   const onKeyPress = (e) => {
     if (e.code === "Enter") inputRef.current.blur();
+    if (e.code === "Escape") {
+      setEditing(false);
+      setValue("");
+    }
   };
 
   const finishEdit = () => {
-    onNewFile(value);
-    setEditing(false);
+    if (value) {
+      onNewFile(value);
+      setEditing(false);
+    }
   };
 
   const startEditing = () => {
@@ -202,7 +223,8 @@ const NewFileTab = ({ onNewFile }) => {
             spellCheck={false}
             placeholder="Untitled"
             onChange={updateValue}
-            onKeyPress={onKeyPress}
+            onAbort={() => console.log("Abort")}
+            onKeyUp={onKeyPress}
             onBlur={finishEdit}
           />
         </div>
@@ -251,6 +273,7 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [files, setFiles] = useState({});
   const [iframeCode, setIframeCode] = useState();
+  const [savedFiles, setSavedFiles] = useState({});
   const [resizing, setResizing] = useState(false);
 
   const [isEditorReady, setIsEditorReady] = useState(false);
@@ -280,12 +303,12 @@ function App() {
     monacoRef.current.languages.typescript.javascriptDefaults.setEagerModelSync(
       true
     );
-    monacoRef.current.languages.typescript.javascriptDefaults.setCompilerOptions(
-      {
-        noLib: true,
-        allowNonTsExtensions: true,
-      }
-    );
+    // monacoRef.current.languages.typescript.javascriptDefaults.setCompilerOptions(
+    //   {
+    //     noLib: true,
+    //     allowNonTsExtensions: true,
+    //   }
+    // );
 
     setIsEditorReady(true);
     setCurrentModel(startFile);
@@ -295,6 +318,10 @@ function App() {
     const onMessage = (e) => {
       if (e.data.event === "LOG") {
         setLogs((l) => [{ method: e.data.level, data: e.data.args }, ...l]);
+      }
+
+      if (e.data.event === "ERROR") {
+        setLogs((l) => [{ method: "script_err", data: e.data.args }, ...l]);
       }
     };
     window.addEventListener("message", onMessage);
@@ -338,6 +365,32 @@ function App() {
     localStorage.setItem("jsplay-cache", JSON.stringify(clone));
   };
 
+  const onTabAction = (action, id) => {
+    if (action === "delete") {
+      monacoRef.current.editor.getModels().forEach((m) => {
+        if (m.uri === id) {
+          m.dispose();
+        }
+      });
+      let cloned = { ...files };
+      delete cloned[id];
+      setFiles(cloned);
+    }
+  };
+
+  const cleanedLogs = useMemo(() => {
+    return logs.map((l) => {
+      if (l.method === "script_err") {
+        return {
+          method: "error",
+          data: [`(Line ${l.data[1]} ${savedFiles[l.data[0]]}) ${l.data[3]}`],
+        };
+      } else {
+        return l;
+      }
+    });
+  }, [logs, savedFiles]);
+
   const onRender = () => {
     const value = monacoRef.current.editor.getModel(currentModel).getValue();
     let valuesMap = {};
@@ -347,9 +400,12 @@ function App() {
       }
     });
     setLogs([]);
-    setIframeCode(injectDependenciesImportMap(value, valuesMap));
+    const { page, urls } = injectDependenciesImportMap(value, valuesMap);
+    setIframeCode(page);
+    setSavedFiles(urls);
     // setIframeCode(injectDependencies(value, valuesMap));
   };
+
   const setCurrentTab = (f) => {
     // monacoRef.current.editor.getModels().forEach((m) => {
     //   if (m.language === "javascript") {
@@ -363,9 +419,60 @@ function App() {
     setCurrentModel(f);
   };
 
+  const onExport = () => {
+    let allScripts;
+    try {
+      allScripts = JSON.parse(localStorage.getItem("jsplay-cache") || "{}");
+    } catch (err) {
+      allScripts = {};
+    }
+
+    const exported = {
+      files: allScripts,
+      playmap: {
+        version: 1,
+      },
+    };
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(
+      new Blob([JSON.stringify(exported)], { type: "text/plain" })
+    );
+    link.download = "proj.playmap";
+    link.click();
+  };
+
+  const onImport = () => {
+    const upload = document.createElement("input");
+    upload.type = "file";
+    upload.click();
+    upload.onchange = (e) => {
+      var reader = new FileReader();
+      reader.readAsText(upload.files[0], "utf-8");
+      reader.onload = (e) => {
+        try {
+          const ff = JSON.parse(e.target.result);
+          if (ff.playmap && ff.playmap.version) {
+            localStorage.setItem("jsplay-cache", JSON.stringify(ff.files));
+            window.location.reload();
+          } else {
+            alert("Invalid playmap file");
+          }
+        } catch (err) {
+          alert("Invalid playmap file");
+        }
+      };
+    };
+  };
+
   return (
     <div className="h-screen w-screen flex">
-      <Sidebar onRun={onRender} />
+      <Sidebar
+        actions={{
+          onRun: onRender,
+          onExport: onExport,
+          onImport: onImport,
+        }}
+      />
       <div className="flex flex-col w-full h-full">
         {/* <div className="p-1 max-h-8 h-8 bg-gray-800 border-b-2 border-gray-600 text-sm flex-grow flex justify-between">
           <span></span>
@@ -390,6 +497,7 @@ function App() {
                     {Object.keys(files).map((f) => (
                       <Tab
                         key={f}
+                        onAction={onTabAction}
                         onToggle={setCurrentTab}
                         value={f}
                         active={currentModel === f}
@@ -412,7 +520,7 @@ function App() {
               </Pane>
               <Pane initialSize="10%" minSize="10%" maxSize="40%">
                 <div class="px-3 overflow-scroll h-full bg-gray-800 border-t-2 border-gray-600 font-mono">
-                  <Console logs={logs} variant="dark" />
+                  <Console logs={cleanedLogs} variant="dark" />
                 </div>
               </Pane>
             </SplitPane>

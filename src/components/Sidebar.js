@@ -1,6 +1,6 @@
 import React from "react";
 
-export const Sidebar = ({ onRun }) => {
+export const Sidebar = ({ actions }) => {
   return (
     <aside className="flex flex-col items-center bg-gray-800 text-gray-200 shadow h-full">
       <div className="h-16 w-16 flex items-center ">
@@ -25,7 +25,7 @@ export const Sidebar = ({ onRun }) => {
       <div className="h-16 flex items-center w-16 hover:bg-gray-600">
         <button
           className="h-16 mx-auto flex justify-center items-center w-full hover:bg-gray-600 hover:text-green-400 focus:outline-none"
-          onClick={onRun}
+          onClick={actions.onRun}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -42,7 +42,7 @@ export const Sidebar = ({ onRun }) => {
         </button>
       </div>
 
-      <div className="h-16 flex items-center w-16 hover:bg-gray-600">
+      {/* <div className="h-16 flex items-center w-16 hover:bg-gray-600">
         <button className="h-16 mx-auto flex justify-center items-center w-full hover:bg-gray-600 hover:text-green-400 focus:outline-none">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -57,9 +57,9 @@ export const Sidebar = ({ onRun }) => {
             />
           </svg>
         </button>
-      </div>
+      </div> */}
 
-      <div className="h-16 flex items-center w-16 hover:bg-gray-600">
+      {/* <div className="h-16 flex items-center w-16 hover:bg-gray-600">
         <button className="h-16 mx-auto flex justify-center items-center w-full hover:bg-gray-600 hover:text-green-400 focus:outline-none">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -68,6 +68,48 @@ export const Sidebar = ({ onRun }) => {
             fill="currentColor"
           >
             <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+          </svg>
+        </button>
+      </div> */}
+
+      <div className="h-16 flex items-center w-16 hover:bg-gray-600">
+        <button
+          className="h-16 mx-auto flex justify-center items-center w-full hover:bg-gray-600 hover:text-green-400 focus:outline-none"
+          onClick={actions.onImport}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div className="h-16 flex items-center w-16 hover:bg-gray-600">
+        <button
+          className="h-16 mx-auto flex justify-center items-center w-full hover:bg-gray-600 hover:text-green-400 focus:outline-none"
+          onClick={actions.onExport}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       </div>
